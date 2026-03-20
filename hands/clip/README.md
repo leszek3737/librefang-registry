@@ -20,6 +20,7 @@ Turns long-form video into viral short clips with captions and thumbnails.
 
 - **Speech-to-Text Provider** -- `auto`, `whisper_local`, `groq_whisper`, `openai_whisper`, `deepgram`
 - **Text-to-Speech Provider** -- `none`, `edge_tts`, `openai_tts`, `elevenlabs`
+- **ElevenLabs API Key** -- Required when ElevenLabs TTS is selected
 - **Publish Clips To** -- `local_only`, `telegram`, `whatsapp`, `both`
 - **Telegram Bot Token / Chat ID** -- For Telegram publishing
 - **WhatsApp Token / Phone ID / Recipient** -- For WhatsApp publishing

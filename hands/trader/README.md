@@ -25,6 +25,8 @@ None required. Alpaca API keys needed for live trading mode.
 - **Scan Schedule** -- `15m`, `1h`, `4h`, `daily`
 - **Watchlist** -- Comma-separated tickers (default: `SPY,QQQ,AAPL,MSFT,NVDA,BTC,ETH`)
 - **Initial Capital** -- Starting portfolio value (default: `$10,000`)
+- **Alpaca API Key** -- API key for live/paper trading (alpaca.markets)
+- **Alpaca Secret Key** -- Alpaca API secret key
 - **Approval Mode** -- Require approval before live trades (default: on)
 
 ## Usage

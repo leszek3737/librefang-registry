@@ -16,6 +16,7 @@ Autonomous Twitter/X manager -- content creation, scheduled posting, engagement,
 
 ## Settings
 
+- **Twitter Bearer Token** -- Bearer Token from the Twitter/X Developer Portal
 - **Content Style** -- `professional`, `casual`, `witty`, `educational`, `provocative`, `inspirational`
 - **Post Frequency** -- `1_daily`, `3_daily`, `5_daily`, `hourly`
 - **Auto Reply** -- Reply to mentions automatically (default: off)

@@ -25,6 +25,7 @@ Autonomous Reddit manager -- monitors subreddits, posts content, replies to thre
 - **Post Frequency** -- `never`, `1_daily`, `3_daily`, `weekly`
 - **Content Style** -- `helpful`, `casual`, `expert`, `witty`
 - **Approval Mode** -- Queue posts for review (default: on)
+- **Minimum Karma to Post** -- `0`, `100`, `500`
 - **Max Reply Depth** -- `1`, `3`, `5`, `unlimited`
 
 ## Usage
