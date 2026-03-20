@@ -45,11 +45,17 @@ stdin:  {"type": "after_turn", "agent_id": "...", "messages": [...]}
 stdout: {"type": "ok"}
 ```
 
-## Current Plugins (1)
+## Current Plugins (7)
 
-| Plugin | Description |
-|--------|-------------|
-| echo-memory | Demo plugin that echoes user messages as recalled memories |
+| Plugin | Hooks | Description |
+|--------|-------|-------------|
+| echo-memory | ingest, after_turn | Demo plugin that echoes user messages as recalled memories |
+| auto-summarizer | ingest, after_turn | Running conversation summary for long context compression |
+| conversation-logger | after_turn | Logs conversations to JSONL files for auditing and analytics |
+| guardrails | ingest | Safety filter detecting PII, prompt injection, and credential exposure |
+| keyword-memory | ingest | Extracts keywords and named entities as contextual memories |
+| sentiment-tracker | ingest | Analyzes user sentiment and injects emotional context |
+| todo-tracker | ingest, after_turn | Detects, persists, and recalls action items from conversations |
 
 ## Adding a New Plugin
 

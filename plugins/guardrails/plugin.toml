@@ -1,0 +1,7 @@
+name = "guardrails"
+version = "0.1.0"
+description = "Safety filter that detects potentially harmful content patterns and injects warnings into agent context"
+author = "librefang"
+
+[hooks]
+ingest = "hooks/ingest.py"

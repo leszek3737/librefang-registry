@@ -1,0 +1,7 @@
+name = "sentiment-tracker"
+version = "0.1.0"
+description = "Analyzes user message sentiment and injects emotional context so agents can respond with appropriate tone"
+author = "librefang"
+
+[hooks]
+ingest = "hooks/ingest.py"

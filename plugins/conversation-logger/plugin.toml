@@ -1,0 +1,7 @@
+name = "conversation-logger"
+version = "0.1.0"
+description = "Logs all conversations to JSONL files for auditing, analytics, and debugging"
+author = "librefang"
+
+[hooks]
+after_turn = "hooks/after_turn.py"

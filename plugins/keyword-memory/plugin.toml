@@ -1,0 +1,7 @@
+name = "keyword-memory"
+version = "0.1.0"
+description = "Extracts keywords and named entities from user messages and returns them as contextual memories"
+author = "librefang"
+
+[hooks]
+ingest = "hooks/ingest.py"

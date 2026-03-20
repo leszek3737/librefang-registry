@@ -1,0 +1,8 @@
+name = "auto-summarizer"
+version = "0.1.0"
+description = "Maintains a running conversation summary to help agents handle long conversations without losing context"
+author = "librefang"
+
+[hooks]
+ingest = "hooks/ingest.py"
+after_turn = "hooks/after_turn.py"
