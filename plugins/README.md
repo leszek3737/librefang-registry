@@ -1,0 +1,62 @@
+# Plugins
+
+Plugin packages for LibreFang. Plugins extend agent behavior through lifecycle hooks -- they can inject memories, modify context, or perform side effects during conversations.
+
+## Structure
+
+```
+plugins/
+└── echo-memory/
+    ├── plugin.toml          # Plugin manifest
+    ├── hooks/
+    │   ├── ingest.py        # Called on user message
+    │   └── after_turn.py    # Called after each turn
+    └── requirements.txt     # Python dependencies
+```
+
+## plugin.toml Format
+
+```toml
+name = "plugin-name"             # Must match directory name
+version = "0.1.0"
+description = "What this plugin does"
+author = "author-name"
+
+[hooks]
+ingest = "hooks/ingest.py"       # Receives user message, can return memories
+after_turn = "hooks/after_turn.py" # Post-turn processing
+```
+
+## Hook Protocol
+
+Hooks communicate via stdin/stdout JSON:
+
+### ingest hook
+
+```
+stdin:  {"type": "ingest", "agent_id": "...", "message": "user message"}
+stdout: {"type": "ingest_result", "memories": [{"content": "..."}]}
+```
+
+### after_turn hook
+
+```
+stdin:  {"type": "after_turn", "agent_id": "...", "messages": [...]}
+stdout: {"type": "ok"}
+```
+
+## Current Plugins (1)
+
+| Plugin | Description |
+|--------|-------------|
+| echo-memory | Demo plugin that echoes user messages as recalled memories |
+
+## Adding a New Plugin
+
+1. Create `plugins/<name>/plugin.toml`
+2. Add hook scripts in `hooks/`
+3. List dependencies in `requirements.txt` (prefer stdlib-only)
+4. Run `python scripts/validate.py`
+5. Submit a PR
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the full guide.
