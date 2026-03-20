@@ -1,9 +1,11 @@
-# Model Catalog Schema Reference
-# ================================
-# This file documents all available fields and their types.
-# It is NOT a real provider file — it exists purely as documentation.
-#
-# Required fields are marked. All other fields are optional.
+# LibreFang Registry Schema Reference
+# ====================================
+# This file documents all available fields and their types for each content type.
+# It is NOT a real definition — it exists purely as documentation.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROVIDER / MODEL SCHEMA (providers/*.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 [provider]
 id = "provider-id"                     # Required: unique provider identifier (lowercase, hyphenated)
@@ -13,7 +15,7 @@ base_url = "https://api.example.com"   # Required: default API base URL
 key_required = true                    # Required: whether an API key is needed (false for local providers)
 
 [[models]]
-id = "model-id"                        # Required: unique model identifier
+id = "model-id"                        # Required: unique model identifier (API model ID)
 display_name = "Human Name"            # Required: human-readable display name
 tier = "smart"                         # Required: one of "frontier", "smart", "balanced", "fast", "local"
                                        #   frontier — cutting-edge, most capable (e.g. Claude Opus, GPT-4.1)
@@ -29,3 +31,176 @@ supports_tools = true                  # Optional: tool/function calling support
 supports_vision = true                 # Optional: vision/image input support (default: false)
 supports_streaming = true              # Optional: streaming response support (default: true)
 aliases = ["alias1", "alias2"]         # Optional: alternative names for this model
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AGENT SCHEMA (agents/<name>/agent.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Top-level fields:
+#   name          = "agent-name"           # Required: agent identifier, must match directory name
+#   version       = "0.1.0"               # Optional: semver version string
+#   description   = "What this agent does" # Required: one-sentence description
+#   author        = "author-name"          # Optional: author or organization
+#   module        = "builtin:chat"         # Required: runtime module (builtin:chat, builtin:tool, etc.)
+#
+# [model]                                  # Agent's LLM configuration
+#   provider      = "default"              # Optional: provider ID or "default"
+#   model         = "default"              # Optional: model ID or "default"
+#   max_tokens    = 4096                   # Optional: max response tokens
+#   temperature   = 0.7                    # Optional: sampling temperature (0.0–2.0)
+#   system_prompt = "..."                  # Required: behavioral instructions for the agent
+#
+# [metadata.routing]                       # Optional: routing configuration
+#   aliases       = ["exact match phrases"]       # Phrases that route directly to this agent
+#   weak_aliases  = ["partial match keywords"]    # Keywords that suggest this agent
+#
+# [resources]                              # Optional: resource limits
+#   max_llm_tokens_per_hour = 100000       # Token budget per hour
+#
+# [capabilities]                           # Optional: agent permissions
+#   tools         = ["tool1", "tool2"]     # List of allowed tool names
+#   network       = ["*"]                  # Network access patterns ("*" = unrestricted)
+#   memory_read   = ["*"]                  # Memory read permissions
+#   memory_write  = ["self.*"]             # Memory write permissions
+#   agent_spawn   = false                  # Whether this agent can spawn sub-agents
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HAND SCHEMA (hands/<name>/HAND.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Top-level fields:
+#   id            = "hand-id"              # Required: unique identifier, must match directory name
+#   name          = "Hand Name"            # Required: human-readable display name
+#   description   = "What this hand does"  # Required: one-sentence description
+#   category      = "productivity"         # Required: one of "communication", "content", "data",
+#                                          #   "development", "devops", "finance", "productivity",
+#                                          #   "research", "social"
+#   icon          = "🌐"                   # Optional: emoji icon
+#   tools         = ["tool1", "tool2"]     # Required: list of tool names this hand uses
+#
+# [routing]                                # Optional: routing configuration
+#   aliases       = ["activate phrases"]
+#   weak_aliases  = ["keyword hints"]
+#
+# [[requires]]                             # Optional: external dependencies (repeatable)
+#   key           = "python3"              # Unique dependency key
+#   label         = "Python 3"             # Human-readable label
+#   requirement_type = "binary"            # "binary", "package", "service"
+#   check_value   = "python3"              # Binary name or check command
+#   optional      = false                  # Whether the dependency is optional
+#   description   = "Why this is needed"
+#   [requires.install]                     # Platform-specific install instructions
+#     macos       = "brew install python3"
+#     windows     = "winget install Python.Python.3.12"
+#     linux_apt   = "sudo apt install python3"
+#     manual_url  = "https://..."
+#
+# [[settings]]                             # Optional: user-configurable settings (repeatable)
+#   key           = "setting_key"          # Unique setting key
+#   label         = "Setting Label"        # Human-readable label
+#   description   = "What this controls"
+#   setting_type  = "toggle"               # "toggle", "select", "text", "number"
+#   default       = "true"                 # Default value as string
+#   [[settings.options]]                   # For "select" type: available options
+#     value       = "option1"
+#     label       = "Option Label"
+#
+# [agent]                                  # Required: the agent that powers this hand
+#   name          = "hand-agent-name"
+#   description   = "Agent description"
+#   module        = "builtin:chat"
+#   provider      = "default"
+#   model         = "default"
+#   max_tokens    = 16384
+#   temperature   = 0.3
+#   max_iterations = 60
+#   system_prompt = "..."                  # Detailed behavioral prompt
+#
+# [dashboard]                              # Optional: dashboard metrics
+#   [[dashboard.metrics]]
+#     label       = "Metric Name"
+#     memory_key  = "metric_memory_key"
+#     format      = "number"               # "number", "currency", "percentage"
+#
+# [metadata]                               # Optional: operational metadata
+#   frequency     = "continuous"           # "continuous", "on-demand", "scheduled"
+#   token_consumption = "low"              # "low", "medium", "high"
+#   default_active = true                  # Whether active by default
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# INTEGRATION SCHEMA (integrations/<name>.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Top-level fields:
+#   id            = "integration-id"       # Required: unique identifier, must match filename
+#   name          = "Service Name"         # Required: human-readable display name
+#   description   = "What this provides"   # Optional: one-sentence description
+#   category      = "devtools"             # Optional: "devtools", "communication", "storage",
+#                                          #   "monitoring", "data", "productivity"
+#   icon          = "🐙"                   # Optional: emoji icon
+#   tags          = ["tag1", "tag2"]       # Optional: searchable tags
+#
+# [transport]                              # Required: MCP server transport configuration
+#   type          = "stdio"                # "stdio" or "sse"
+#   command       = "npx"                  # Command to launch the MCP server
+#   args          = ["-y", "@pkg/server"]  # Command arguments
+#
+# [[required_env]]                         # Optional: required environment variables (repeatable)
+#   name          = "SERVICE_API_KEY"      # Environment variable name
+#   label         = "API Key"              # Human-readable label
+#   help          = "How to get this"      # Help text
+#   is_secret     = true                   # Whether this is a secret value
+#   get_url       = "https://..."          # URL where user can get the value
+#
+# [oauth]                                  # Optional: OAuth configuration
+#   provider      = "github"
+#   scopes        = ["repo", "read:org"]
+#   auth_url      = "https://..."
+#   token_url     = "https://..."
+#
+# [health_check]                           # Optional: health check configuration
+#   interval_secs = 60
+#   unhealthy_threshold = 3
+#
+# setup_instructions = "..."               # Optional: multi-line setup guide
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SKILL SCHEMA (skills/<name>/skill.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# [skill]                                  # Required: skill metadata
+#   name          = "skill-name"           # Required: skill identifier, must match directory name
+#   version       = "0.1.0"               # Optional: semver version
+#   description   = "What this skill does" # Optional: one-sentence description
+#   author        = "author-name"          # Optional: author
+#   tags          = ["tag1", "tag2"]       # Optional: searchable tags
+#
+# [runtime]                                # Required: execution runtime
+#   type          = "promptonly"           # Required: "promptonly", "python", "node", "shell"
+#   entry         = "main.py"             # Required for non-promptonly: entry point file
+#
+# [input]                                  # Optional: input parameter definitions
+#   param_name    = { type = "string", description = "...", required = true }
+#
+# [prompt]                                 # Required for promptonly: prompt template
+#   template      = "Use {{param_name}} in the template"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PLUGIN SCHEMA (plugins/<name>/plugin.toml)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Top-level fields:
+#   name          = "plugin-name"          # Required: plugin identifier, must match directory name
+#   version       = "0.1.0"               # Required: semver version
+#   description   = "What this plugin does" # Required: one-sentence description
+#   author        = "author-name"          # Optional: author
+#
+# [hooks]                                  # Required: hook entry points
+#   ingest        = "hooks/ingest.py"      # Optional: called when user message is received
+#   after_turn    = "hooks/after_turn.py"  # Optional: called after each conversation turn
+#
+# Hook scripts communicate via stdin/stdout JSON:
+#   ingest receives:    {"type": "ingest", "agent_id": "...", "message": "..."}
+#   ingest returns:     {"type": "ingest_result", "memories": [{"content": "..."}]}
+#   after_turn receives: {"type": "after_turn", "agent_id": "...", "messages": [...]}
+#   after_turn returns:  {"type": "ok"}

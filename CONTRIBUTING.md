@@ -162,6 +162,31 @@ Plus a `main.py` with your implementation.
 - [ ] Prompt-only skills have a `[prompt].template` with correct `{{param}}` placeholders
 - [ ] Python skills include all required files
 
+## Adding a Plugin
+
+Create a directory `plugins/<name>/` with a `plugin.toml` and hook scripts:
+
+```toml
+name = "my-plugin"
+version = "0.1.0"
+description = "What this plugin does"
+author = "your-name"
+
+[hooks]
+ingest = "hooks/ingest.py"         # Called when user message is received
+after_turn = "hooks/after_turn.py" # Called after each conversation turn
+```
+
+Hook scripts communicate via stdin/stdout JSON. See [schema.toml](schema.toml) for the protocol format.
+
+### Plugin Checklist
+
+- [ ] `name` matches the directory name
+- [ ] `[hooks]` lists at least one hook
+- [ ] All referenced hook files exist
+- [ ] Hook scripts read JSON from stdin and write JSON to stdout
+- [ ] `requirements.txt` lists any Python dependencies (stdlib-only preferred)
+
 ## Adding or Updating a Provider / Model
 
 Edit the appropriate provider file in `providers/`. If the provider doesn't exist, create a new file.

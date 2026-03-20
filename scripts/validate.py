@@ -106,11 +106,17 @@ def validate_agent_file(filepath: Path) -> list[str]:
         return [err]
 
     errors = []
+    dir_name = filepath.parent.name
     rel = filepath.relative_to(filepath.parent.parent)
 
     for field in ("name", "description", "module"):
         if field not in data:
             errors.append(f"{rel}: Missing required field '{field}'")
+
+    # name should match directory name
+    name = data.get("name")
+    if name and name != dir_name:
+        errors.append(f"{rel}: name '{name}' does not match directory '{dir_name}'")
 
     if "model" in data:
         model = data["model"]
@@ -127,11 +133,17 @@ def validate_hand_file(filepath: Path) -> list[str]:
         return [err]
 
     errors = []
+    dir_name = filepath.parent.name
     rel = filepath.relative_to(filepath.parent.parent.parent)
 
     for field in ("id", "name", "description"):
         if field not in data:
             errors.append(f"{rel}: Missing required field '{field}'")
+
+    # id should match directory name
+    hand_id = data.get("id")
+    if hand_id and hand_id != dir_name:
+        errors.append(f"{rel}: id '{hand_id}' does not match directory '{dir_name}'")
 
     category = data.get("category")
     if category and category not in VALID_HAND_CATEGORIES:
@@ -150,10 +162,16 @@ def validate_integration_file(filepath: Path) -> list[str]:
         return [err]
 
     errors = []
+    expected_id = filepath.stem  # filename without .toml
 
     for field in ("id", "name"):
         if field not in data:
             errors.append(f"{filepath.name}: Missing required field '{field}'")
+
+    # id should match filename
+    int_id = data.get("id")
+    if int_id and int_id != expected_id:
+        errors.append(f"{filepath.name}: id '{int_id}' does not match filename '{expected_id}'")
 
     if "transport" not in data:
         errors.append(f"{filepath.name}: Missing [transport] section")
@@ -297,8 +315,66 @@ def main():
                 all_errors.append(f"skills/{d.name}: Missing skill.toml")
         stats["skills"] = len(skill_dirs)
 
+    # --- Plugins ---
+    plugins_dir = root / "plugins"
+    if plugins_dir.is_dir():
+        plugin_dirs = sorted([d for d in plugins_dir.iterdir() if d.is_dir() and not d.name.startswith(".")])
+        for d in plugin_dirs:
+            plugin_toml = d / "plugin.toml"
+            if plugin_toml.exists():
+                data, err = load_toml(plugin_toml)
+                if err:
+                    all_errors.append(err)
+                elif data:
+                    if "name" not in data:
+                        all_errors.append(f"plugins/{d.name}: Missing required field 'name'")
+                    elif data["name"] != d.name:
+                        all_errors.append(f"plugins/{d.name}: name '{data['name']}' does not match directory '{d.name}'")
+                    if "hooks" not in data:
+                        all_errors.append(f"plugins/{d.name}: Missing [hooks] section")
+                    else:
+                        for hook_name, hook_path in data["hooks"].items():
+                            full = d / hook_path
+                            if not full.exists():
+                                all_errors.append(f"plugins/{d.name}: Hook file '{hook_path}' not found")
+            else:
+                all_errors.append(f"plugins/{d.name}: Missing plugin.toml")
+        stats["plugins"] = len(plugin_dirs)
+
     # --- Aliases ---
     all_errors.extend(validate_aliases_file(root / "aliases.toml"))
+
+    # --- Cross-type: duplicate routing aliases ---
+    all_aliases = {}  # alias -> (type, name)
+    warnings = []
+
+    # Collect agent routing aliases
+    if agents_dir.is_dir():
+        for d in sorted([d for d in agents_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]):
+            data, _ = load_toml(d / "agent.toml")
+            if data:
+                routing = data.get("metadata", {}).get("routing", {})
+                for alias in routing.get("aliases", []) + routing.get("weak_aliases", []):
+                    key = alias.lower()
+                    if key in all_aliases:
+                        prev_type, prev_name = all_aliases[key]
+                        warnings.append(f"Routing alias '{alias}' used by both {prev_type}/{prev_name} and agent/{d.name}")
+                    else:
+                        all_aliases[key] = ("agent", d.name)
+
+    # Collect hand routing aliases
+    if hands_dir.is_dir():
+        for d in sorted([d for d in hands_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]):
+            data, _ = load_toml(d / "HAND.toml")
+            if data:
+                routing = data.get("routing", {})
+                for alias in routing.get("aliases", []) + routing.get("weak_aliases", []):
+                    key = alias.lower()
+                    if key in all_aliases:
+                        prev_type, prev_name = all_aliases[key]
+                        warnings.append(f"Routing alias '{alias}' used by both {prev_type}/{prev_name} and hand/{d.name}")
+                    else:
+                        all_aliases[key] = ("hand", d.name)
 
     # --- Report ---
     print("=" * 60)
@@ -313,10 +389,16 @@ def main():
         print()
 
     print("Content summary:")
-    for key in ("providers", "models", "agents", "hands", "integrations", "skills"):
+    for key in ("providers", "models", "agents", "hands", "integrations", "skills", "plugins"):
         if key in stats:
             print(f"  {key:20s} {stats[key]:>4}")
     print()
+
+    if warnings:
+        print(f"WARNINGS ({len(warnings)}):")
+        for w in warnings:
+            print(f"  - {w}")
+        print()
 
     if all_errors:
         print(f"VALIDATION FAILED with {len(all_errors)} error(s)")
