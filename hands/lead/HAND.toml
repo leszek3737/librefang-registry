@@ -196,6 +196,67 @@ label = "Standard (+ company size, industry, tech stack)"
 value = "deep"
 label = "Deep (+ funding, recent news, social profiles)"
 
+[[settings]]
+key = "lead_score_threshold"
+label = "Lead Score Threshold"
+description = "Minimum score (0-100) for a lead to be included in reports"
+setting_type = "select"
+default = "60"
+
+[[settings.options]]
+value = "40"
+label = "40 — Include warm and hot leads"
+
+[[settings.options]]
+value = "60"
+label = "60 — Warm leads and above (recommended)"
+
+[[settings.options]]
+value = "80"
+label = "80 — Hot leads only"
+
+[[settings]]
+key = "qualification_framework"
+label = "Qualification Framework"
+description = "Sales qualification methodology to apply during lead scoring"
+setting_type = "select"
+default = "bant"
+
+[[settings.options]]
+value = "bant"
+label = "BANT (Budget, Authority, Need, Timeline)"
+
+[[settings.options]]
+value = "meddic"
+label = "MEDDIC (Metrics, Economic Buyer, Decision Criteria, Process, Pain, Champion)"
+
+[[settings.options]]
+value = "auto"
+label = "Auto (BANT for SMB, MEDDIC for Enterprise)"
+
+[[settings]]
+key = "crm_export_format"
+label = "CRM Export Format"
+description = "Generate an additional CRM-ready export alongside the standard report"
+setting_type = "select"
+default = "none"
+
+[[settings.options]]
+value = "none"
+label = "None (standard report only)"
+
+[[settings.options]]
+value = "hubspot"
+label = "HubSpot"
+
+[[settings.options]]
+value = "salesforce"
+label = "Salesforce"
+
+[[settings.options]]
+value = "pipedrive"
+label = "Pipedrive"
+
 # ─── Agent configuration ─────────────────────────────────────────────────────
 
 [agent]
@@ -207,7 +268,7 @@ model = "default"
 max_tokens = 16384
 temperature = 0.3
 max_iterations = 50
-system_prompt = """You are Lead Hand — an autonomous lead generation engine that discovers, enriches, and delivers qualified leads 24/7.
+system_prompt = """You are Lead Hand — an autonomous lead generation engine that discovers, qualifies, enriches, and delivers sales-ready leads 24/7. You combine systematic web research with structured qualification frameworks (BANT/MEDDIC) to produce leads that sales teams can act on immediately.
 
 ## Phase 0 — Platform Detection (ALWAYS DO THIS FIRST)
 
@@ -225,7 +286,7 @@ Then set your approach:
 
 On first run:
 1. Check memory_recall for `lead_hand_state` — if it exists, you're resuming
-2. Read the **User Configuration** section for target_industry, target_role, company_size, geo_focus, etc.
+2. Read the **User Configuration** section for target_industry, target_role, company_size, geo_focus, qualification_framework, lead_score_threshold, crm_export_format, etc.
 3. Create your delivery schedule using schedule_create based on `delivery_schedule` setting
 4. Load any existing lead database from `leads_database.json` via file_read (if it exists)
 
@@ -236,13 +297,20 @@ On subsequent runs:
 
 ---
 
-## Phase 2 — Target Profile Construction
+## Phase 2 — Ideal Customer Profile Construction & Refinement
 
 Build an Ideal Customer Profile (ICP) from user settings:
 - Industry: from `target_industry` setting
 - Decision-maker roles: from `target_role` setting
 - Company size filter: from `company_size` setting
 - Geography: from `geo_focus` setting
+
+**ICP Refinement Loop** (run after every 3 reports):
+1. Analyze the top 20% of leads by score — what attributes do they share?
+2. Analyze the bottom 20% — what attributes caused low scores?
+3. Tighten ICP criteria based on patterns: narrow industry keywords, adjust company size range, add tech stack requirements
+4. Log ICP revisions to `icp_revision_log.json` with date and rationale
+5. memory_store `lead_hand_icp_version` with the current ICP revision number
 
 Store the ICP in the knowledge graph:
 - knowledge_add_entity: ICP profile node
@@ -263,22 +331,27 @@ Execute a multi-query web research loop:
 3. For promising results, use web_fetch to extract company/person details
 4. Extract structured lead data: name, title, company, company_url, linkedin_url (if public), email pattern
 
-Target: discover 2-3x the `leads_per_report` setting to allow for filtering.
+Target: discover 2-3x the `leads_per_report` setting to allow for filtering and qualification.
 
 ---
 
 ## Phase 4 — Lead Enrichment
 
-For each discovered lead, based on `enrichment_depth`:
+Apply enrichment based on `enrichment_depth` setting. Higher depth costs more tool calls but produces better-qualified leads.
 
-**Basic**: name, title, company — already have this from discovery
-**Standard**: additionally fetch:
+**Basic**: name, title, company — already have this from discovery. Use for high-volume, low-touch lists.
+**Standard** (recommended default): additionally fetch:
 - Company website (web_fetch company_url) — extract: employee count, industry, tech stack, product description
 - Look for company on job boards — hiring signals indicate growth
-**Deep**: additionally fetch:
+- Cross-reference at least 2 sources per company to verify data accuracy
+**Deep** (best for enterprise targets): additionally fetch:
 - Recent funding news (web_search "[company] funding round")
 - Recent company news (web_search "[company] news 2025")
 - Social profiles (web_search "[person name] [company] linkedin twitter")
+- Competitive landscape (what tools/vendors they currently use)
+- Negative signals: layoffs, lawsuits, executive departures
+
+**Enrichment depth escalation**: If a lead scores above 70 at Standard depth, automatically re-enrich at Deep depth to maximize qualification data. This targets deep enrichment resources only at the most promising leads.
 
 Store enriched entities in knowledge graph:
 - knowledge_add_entity for each lead and company
@@ -286,10 +359,44 @@ Store enriched entities in knowledge graph:
 
 ---
 
-## Phase 5 — Deduplication & Scoring
+## Phase 5 — Qualification
+
+Apply the qualification framework configured by the `qualification_framework` setting.
+
+### BANT Qualification (default — best for SMB/startup targets, short sales cycles)
+For each lead, assess four dimensions from enrichment data:
+- **Budget**: funding rounds, revenue estimates, pricing tier of current tools, job postings for related roles
+- **Authority**: is the contact a decision-maker? VP+, C-level, Director, listed on Leadership page
+- **Need**: job postings mentioning the pain point, tech stack gaps, competitor tool usage, forum complaints
+- **Timeline**: contract renewals, compliance deadlines, product launches, recent leadership changes
+
+Apply BANT bonus points on top of the base score:
+  Budget confirmed: +5 | Authority confirmed: +5 | Need confirmed: +5 | Timeline confirmed: +5 (max +20)
+
+### MEDDIC Qualification (best for enterprise targets, $100K+ deal size)
+For each enterprise lead (500+ employees or score > 80), attempt to discover:
+- **Metrics**: quantifiable outcomes the buyer cares about (case studies, KPIs in job postings)
+- **Economic Buyer**: person with budget authority (CFO, CEO, VP Finance, Head of Procurement)
+- **Decision Criteria**: how they evaluate vendors (RFP docs, comparison posts, compliance requirements)
+- **Decision Process**: steps from evaluation to purchase (procurement team, legal review, pilot mentions)
+- **Identify Pain**: specific problems driving a purchase (support forums, reviews, analyst reports)
+- **Champion**: internal advocate (conference speakers, blog authors, open-source contributors)
+
+Log the MEDDIC score as X/6 dimensions discovered per lead.
+
+### Mixed-list strategy
+When the target list contains both SMB and enterprise leads:
+1. Run BANT on all leads (fast first pass)
+2. For enterprise leads that score A-grade (80+), run a MEDDIC deep pass
+3. Include the qualification framework used in the output for each lead
+
+---
+
+## Phase 6 — Deduplication & Scoring
 
 1. Compare new leads against existing `leads_database.json`:
    - Match on: normalized company name + person name
+   - Match on: company website domain (most stable identifier)
    - Skip exact duplicates
    - Update existing leads with new enrichment data
 2. Score each lead (0-100):
@@ -298,40 +405,59 @@ Store enriched entities in knowledge graph:
    - Enrichment completeness: +20 (all fields populated)
    - Recency: +15 (company active recently)
    - Accessibility: +15 (public contact info available)
-3. Sort by score descending
-4. Take top N leads per `leads_per_report` setting
+   Then apply qualification bonuses (BANT: up to +20, MEDDIC: up to +10 for 5+ dimensions)
+   Then apply negative modifiers:
+   - Recent layoffs (>10% headcount): -10
+   - Lawsuit / regulatory action: -5
+   - Executive turnover (CEO/CTO departed): -5
+3. Apply the `lead_score_threshold` — only include leads at or above this score
+4. Sort by score descending
+5. Take top N leads per `leads_per_report` setting
+6. If fewer leads meet the threshold than requested, report honestly: "Found X leads meeting quality threshold; Y additional leads are partial matches below threshold"
+
+### Score interpretation for output:
+- 80-100 (A): Hot lead — prioritize immediate outreach
+- 60-79 (B): Warm lead — worth nurturing
+- 40-59 (C): Cool lead — needs further enrichment
+- 0-39 (D): Cold lead — deprioritize unless ICP changes
 
 ---
 
-## Phase 6 — Report Generation
+## Phase 7 — Report Generation
 
 Generate the report in the configured `output_format`:
 
 **CSV format**:
 ```csv
-Name,Title,Company,Company URL,Industry,Company Size,Score,Discovery Date,Notes
+Name,Title,Company,Company URL,Industry,Company Size,Score,Grade,Qualification,Discovery Date,Notes
 ```
 
 **JSON format**:
 ```json
-[{"name": "...", "title": "...", "company": "...", "company_url": "...", "industry": "...", "size": "...", "score": 85, "discovered": "2025-01-15", "enrichment": {...}}]
+[{"name": "...", "title": "...", "company": "...", "company_url": "...", "industry": "...", "size": "...", "score": 85, "grade": "A", "qualification": {"framework": "BANT", "budget": true, "authority": true, "need": true, "timeline": false}, "discovered": "2025-01-15", "enrichment": {...}}]
 ```
 
 **Markdown Table format**:
 ```markdown
-| # | Name | Title | Company | Score | Signal |
-|---|------|-------|---------|-------|--------|
+| # | Name | Title | Company | Score | Grade | Qualification | Key Signal |
+|---|------|-------|---------|-------|-------|---------------|------------|
 ```
 
+**CRM export** (when `crm_export_format` is set):
+- **hubspot**: JSON with HubSpot contact property names (firstname, lastname, jobtitle, company, hs_lead_status)
+- **salesforce**: CSV with Salesforce standard field names (FirstName, LastName, Title, Company, LeadSource, Rating)
+- **pipedrive**: JSON with Pipedrive person/organization fields (name, org_id, title, email)
+
 Save report to: `lead_report_YYYY-MM-DD.{csv,json,md}`
+If CRM export is enabled, also save: `lead_report_YYYY-MM-DD_crm.{csv,json}`
 
 ---
 
-## Phase 7 — State Persistence
+## Phase 8 — State Persistence
 
 After each run:
 1. Update `leads_database.json` with all known leads (new + existing)
-2. memory_store `lead_hand_state` with: last_run, total_leads, report_count
+2. memory_store `lead_hand_state` with: last_run, total_leads, report_count, icp_version
 3. Update dashboard stats:
    - memory_store `lead_hand_leads_found` — total unique leads discovered
    - memory_store `lead_hand_reports_generated` — increment report count
@@ -348,6 +474,7 @@ After each run:
 - If a search yields no results, try alternative queries before giving up
 - Always deduplicate before reporting — users hate seeing the same lead twice
 - Include your confidence level for enriched data (e.g. "email pattern: likely" vs "email: verified")
+- Quality over quantity: 10 well-qualified A-grade leads beat 50 unqualified names
 - If the user messages you directly, pause the pipeline and respond to their question
 """
 
@@ -380,6 +507,337 @@ token_consumption = "medium"
 default_active = false
 activation_warning = "Lead hand runs continuously and generates leads on schedule, consuming tokens."
 
+# ─── Internationalization (optional) ─────────────────────────────────────────
+# All i18n sections are optional. Without them, the English values above are used.
+# To localize, add [i18n.LANG] sections (e.g. zh, ja, ko, es, fr, de).
+# Settings translations are also optional — omit to keep English labels.
+
+# ─── Chinese (简体中文) ────────────────────────────────────────────────────
+
 [i18n.zh]
 name = "线索生成 Hand"
 description = "自主线索生成——按计划发现、充实并交付合格的潜在客户"
+category = "数据"
+
+[i18n.zh.settings.target_industry]
+label = "目标行业"
+description = "重点关注的行业垂直领域（例如 SaaS、金融科技、医疗健康、电子商务）"
+
+[i18n.zh.settings.target_role]
+label = "目标职位"
+description = "要触达的决策者头衔（例如 CTO、工程副总裁、产品负责人）"
+
+[i18n.zh.settings.company_size]
+label = "公司规模"
+description = "按公司规模筛选线索"
+
+[i18n.zh.settings.lead_source]
+label = "线索来源"
+description = "发现线索的主要方式"
+
+[i18n.zh.settings.output_format]
+label = "输出格式"
+description = "报告交付格式"
+
+[i18n.zh.settings.leads_per_report]
+label = "每份报告线索数"
+description = "每份报告中包含的线索数量"
+
+[i18n.zh.settings.delivery_schedule]
+label = "交付计划"
+description = "生成和交付线索报告的时间安排"
+
+[i18n.zh.settings.geo_focus]
+label = "地域重点"
+description = "优先关注的地理区域（例如美国、欧洲、亚太、全球）"
+
+[i18n.zh.settings.enrichment_depth]
+label = "信息丰富度"
+description = "对每条线索收集多少上下文信息"
+
+[i18n.zh.settings.lead_score_threshold]
+label = "线索评分阈值"
+description = "报告中包含线索的最低评分（0-100）"
+
+[i18n.zh.settings.qualification_framework]
+label = "资质评估框架"
+description = "线索评分时使用的销售资质评估方法论"
+
+[i18n.zh.settings.crm_export_format]
+label = "CRM 导出格式"
+description = "在标准报告之外生成 CRM 可导入的文件"
+
+# ─── Korean (한국어) ────────────────────────────────────────────────────
+
+[i18n.ko]
+name = "리드 생성 Hand"
+description = "자율 리드 생성 — 일정에 따라 적격 리드를 탐색, 보강 및 전달"
+category = "데이터"
+
+[i18n.ko.settings.target_industry]
+label = "대상 산업"
+description = "집중할 산업 분야 (예: SaaS, 핀테크, 헬스케어, 이커머스)"
+
+[i18n.ko.settings.target_role]
+label = "대상 직책"
+description = "타겟할 의사결정자 직함 (예: CTO, 엔지니어링 VP, 프로덕트 총괄)"
+
+[i18n.ko.settings.company_size]
+label = "회사 규모"
+description = "회사 규모별 리드 필터링"
+
+[i18n.ko.settings.lead_source]
+label = "리드 소스"
+description = "리드를 발굴하는 주요 방법"
+
+[i18n.ko.settings.output_format]
+label = "출력 형식"
+description = "보고서 전달 형식"
+
+[i18n.ko.settings.leads_per_report]
+label = "보고서당 리드 수"
+description = "각 보고서에 포함할 리드 수"
+
+[i18n.ko.settings.delivery_schedule]
+label = "전달 일정"
+description = "리드 보고서 생성 및 전달 시간"
+
+[i18n.ko.settings.geo_focus]
+label = "지역 중점"
+description = "우선적으로 집중할 지역 (예: 미국, 유럽, 아시아 태평양, 글로벌)"
+
+[i18n.ko.settings.enrichment_depth]
+label = "보강 깊이"
+description = "리드당 수집할 컨텍스트 정보의 수준"
+
+[i18n.ko.settings.lead_score_threshold]
+label = "리드 점수 기준"
+description = "보고서에 포함할 리드의 최소 점수 (0-100)"
+
+[i18n.ko.settings.qualification_framework]
+label = "자격 평가 프레임워크"
+description = "리드 스코어링 시 적용할 영업 자격 평가 방법론"
+
+[i18n.ko.settings.crm_export_format]
+label = "CRM 내보내기 형식"
+description = "표준 보고서와 함께 CRM 가져오기용 파일 생성"
+
+# ─── Japanese (日本語) ────────────────────────────────────────────────────
+
+[i18n.ja]
+name = "リード生成 Hand"
+description = "自律型リード生成エージェント——スケジュールに基づき見込み客を発見・情報付加・配信"
+category = "データ"
+
+[i18n.ja.settings.target_industry]
+label = "ターゲット業界"
+description = "注力する業界バーティカル（例: SaaS、フィンテック、ヘルスケア、EC）"
+
+[i18n.ja.settings.target_role]
+label = "ターゲット職種"
+description = "アプローチする意思決定者の肩書き（例: CTO、VP Engineering、プロダクト責任者）"
+
+[i18n.ja.settings.company_size]
+label = "企業規模"
+description = "企業規模でリードをフィルタリング"
+
+[i18n.ja.settings.lead_source]
+label = "リードソース"
+description = "リードを発見する主な方法"
+
+[i18n.ja.settings.output_format]
+label = "出力形式"
+description = "レポートの配信形式"
+
+[i18n.ja.settings.leads_per_report]
+label = "レポートあたりのリード数"
+description = "各レポートに含めるリードの数"
+
+[i18n.ja.settings.delivery_schedule]
+label = "配信スケジュール"
+description = "リードレポートの生成・配信タイミング"
+
+[i18n.ja.settings.geo_focus]
+label = "地域フォーカス"
+description = "優先する地理的リージョン（例: 米国、欧州、APAC、グローバル）"
+
+[i18n.ja.settings.enrichment_depth]
+label = "情報付加の深さ"
+description = "リードごとに収集するコンテキスト情報の量"
+
+[i18n.ja.settings.lead_score_threshold]
+label = "リードスコア閾値"
+description = "レポートに含めるリードの最低スコア（0-100）"
+
+[i18n.ja.settings.qualification_framework]
+label = "資格評価フレームワーク"
+description = "リードスコアリング時に適用する営業資格評価の方法論"
+
+[i18n.ja.settings.crm_export_format]
+label = "CRMエクスポート形式"
+description = "標準レポートに加えてCRMインポート用ファイルを生成"
+
+# ─── Spanish (Español) ────────────────────────────────────────────────────
+
+[i18n.es]
+name = "Hand de Generación de Leads"
+description = "Generación autónoma de leads — descubre, enriquece y entrega leads cualificados según un calendario"
+category = "Datos"
+
+[i18n.es.settings.target_industry]
+label = "Industria objetivo"
+description = "Vertical de industria en la que enfocarse (ej. SaaS, fintech, salud, e-commerce)"
+
+[i18n.es.settings.target_role]
+label = "Rol objetivo"
+description = "Títulos de tomadores de decisiones a los que dirigirse (ej. CTO, VP de Ingeniería, Director de Producto)"
+
+[i18n.es.settings.company_size]
+label = "Tamaño de empresa"
+description = "Filtrar leads por tamaño de empresa"
+
+[i18n.es.settings.lead_source]
+label = "Fuente de leads"
+description = "Método principal para descubrir leads"
+
+[i18n.es.settings.output_format]
+label = "Formato de salida"
+description = "Formato de entrega del informe"
+
+[i18n.es.settings.leads_per_report]
+label = "Leads por informe"
+description = "Número de leads a incluir en cada informe"
+
+[i18n.es.settings.delivery_schedule]
+label = "Calendario de entrega"
+description = "Cuándo generar y entregar los informes de leads"
+
+[i18n.es.settings.geo_focus]
+label = "Enfoque geográfico"
+description = "Región geográfica a priorizar (ej. EE.UU., Europa, Asia-Pacífico, global)"
+
+[i18n.es.settings.enrichment_depth]
+label = "Profundidad de enriquecimiento"
+description = "Cuánto contexto recopilar por cada lead"
+
+[i18n.es.settings.lead_score_threshold]
+label = "Umbral de puntuación"
+description = "Puntuación mínima (0-100) para incluir un lead en los informes"
+
+[i18n.es.settings.qualification_framework]
+label = "Marco de cualificación"
+description = "Metodología de cualificación comercial a aplicar durante la puntuación de leads"
+
+[i18n.es.settings.crm_export_format]
+label = "Formato de exportación CRM"
+description = "Generar un archivo importable para CRM junto al informe estándar"
+
+# ─── French (Français) ────────────────────────────────────────────────────
+
+[i18n.fr]
+name = "Hand Génération de Prospects"
+description = "Génération autonome de prospects — découvre, enrichit et livre des prospects qualifiés selon un calendrier"
+category = "Données"
+
+[i18n.fr.settings.target_industry]
+label = "Secteur cible"
+description = "Secteur d'activité cible (ex. SaaS, fintech, santé, e-commerce)"
+
+[i18n.fr.settings.target_role]
+label = "Poste cible"
+description = "Titres de décideurs à cibler (ex. CTO, VP Engineering, Directeur Produit)"
+
+[i18n.fr.settings.company_size]
+label = "Taille d'entreprise"
+description = "Filtrer les prospects par taille d'entreprise"
+
+[i18n.fr.settings.lead_source]
+label = "Source de prospects"
+description = "Méthode principale de découverte des prospects"
+
+[i18n.fr.settings.output_format]
+label = "Format de sortie"
+description = "Format de livraison des rapports"
+
+[i18n.fr.settings.leads_per_report]
+label = "Prospects par rapport"
+description = "Nombre de prospects à inclure dans chaque rapport"
+
+[i18n.fr.settings.delivery_schedule]
+label = "Calendrier de livraison"
+description = "Quand générer et livrer les rapports de prospects"
+
+[i18n.fr.settings.geo_focus]
+label = "Focus géographique"
+description = "Région géographique prioritaire (ex. USA, Europe, Asie-Pacifique, Mondial)"
+
+[i18n.fr.settings.enrichment_depth]
+label = "Profondeur d'enrichissement"
+description = "Niveau d'informations contextuelles à collecter par prospect"
+
+[i18n.fr.settings.lead_score_threshold]
+label = "Seuil de score"
+description = "Score minimum (0-100) pour inclure un prospect dans les rapports"
+
+[i18n.fr.settings.qualification_framework]
+label = "Cadre de qualification"
+description = "Méthodologie de qualification commerciale appliquée lors du scoring des prospects"
+
+[i18n.fr.settings.crm_export_format]
+label = "Format d'export CRM"
+description = "Générer un fichier importable CRM en plus du rapport standard"
+
+# ─── German (Deutsch) ────────────────────────────────────────────────────
+
+[i18n.de]
+name = "Lead-Generierungs-Hand"
+description = "Autonome Lead-Generierung — entdeckt, bereichert und liefert qualifizierte Leads nach Zeitplan"
+category = "Daten"
+
+[i18n.de.settings.target_industry]
+label = "Zielbranche"
+description = "Branchenvertikale für den Fokus (z.B. SaaS, Fintech, Gesundheitswesen, E-Commerce)"
+
+[i18n.de.settings.target_role]
+label = "Zielposition"
+description = "Titel der Entscheidungsträger (z.B. CTO, VP Engineering, Produktleiter)"
+
+[i18n.de.settings.company_size]
+label = "Unternehmensgröße"
+description = "Leads nach Unternehmensgröße filtern"
+
+[i18n.de.settings.lead_source]
+label = "Lead-Quelle"
+description = "Primäre Methode zur Lead-Entdeckung"
+
+[i18n.de.settings.output_format]
+label = "Ausgabeformat"
+description = "Berichtslieferformat"
+
+[i18n.de.settings.leads_per_report]
+label = "Leads pro Bericht"
+description = "Anzahl der Leads pro Bericht"
+
+[i18n.de.settings.delivery_schedule]
+label = "Lieferzeitplan"
+description = "Wann Lead-Berichte generiert und geliefert werden"
+
+[i18n.de.settings.geo_focus]
+label = "Geografischer Fokus"
+description = "Priorisierte geografische Region (z.B. USA, Europa, Asien-Pazifik, Global)"
+
+[i18n.de.settings.enrichment_depth]
+label = "Anreicherungstiefe"
+description = "Umfang der pro Lead gesammelten Kontextinformationen"
+
+[i18n.de.settings.lead_score_threshold]
+label = "Lead-Score-Schwelle"
+description = "Mindestpunktzahl (0-100), um einen Lead in Berichte aufzunehmen"
+
+[i18n.de.settings.qualification_framework]
+label = "Qualifizierungsrahmen"
+description = "Vertriebsqualifizierungsmethodik für die Lead-Bewertung"
+
+[i18n.de.settings.crm_export_format]
+label = "CRM-Exportformat"
+description = "Zusätzlich zum Standardbericht eine CRM-importierbare Datei erstellen"

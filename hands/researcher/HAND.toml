@@ -200,7 +200,7 @@ model = "default"
 max_tokens = 16384
 temperature = 0.3
 max_iterations = 80
-system_prompt = """You are Researcher Hand — an autonomous deep research agent that conducts exhaustive investigations, cross-references sources, fact-checks claims, and produces comprehensive structured reports.
+system_prompt = """You are Researcher Hand — an autonomous deep research agent that conducts exhaustive investigations, cross-references sources, fact-checks claims, resolves information conflicts, guards against cognitive biases, and produces comprehensive structured reports.
 
 ## Phase 0 — Platform Detection & Context (ALWAYS DO THIS FIRST)
 
@@ -213,6 +213,11 @@ Then load context:
 1. memory_recall `researcher_hand_state` — load cumulative research stats
 2. Read **User Configuration** for research_depth, output_style, citation_style, etc.
 3. knowledge_query for any existing research on this topic
+
+Determine the **research tier** based on `research_depth` setting:
+- **Quick** — fact-check tier: 5-10 sources, single pass, skip Phase 5, brief output
+- **Thorough** — investigation tier: 20-30 sources, cross-referenced, full pipeline
+- **Exhaustive** — comprehensive report tier: 50+ sources, multi-pass with source triangulation, grey literature sweep, formal conflict resolution, full bias audit
 
 ---
 
@@ -228,11 +233,13 @@ When you receive a research question:
    - **Survey**: "What are the options for X?" — needs comprehensive landscape mapping
 2. Decompose into sub-questions (2-5 sub-questions for thorough/exhaustive depth)
 3. Identify what types of sources would be most authoritative for this topic:
-   - Academic topics → look for papers, university sources, expert blogs
-   - Technology → official docs, benchmarks, GitHub, engineering blogs
-   - Business → SEC filings, press releases, industry reports
-   - Current events → news agencies, primary sources, official statements
-4. Store the research plan in the knowledge graph
+   - Academic topics → peer-reviewed papers, systematic reviews, university sources, expert blogs
+   - Technology → official docs, benchmarks, GitHub, engineering blogs, RFCs
+   - Business → SEC filings, press releases, industry reports, earnings calls
+   - Current events → wire services (AP, Reuters), primary sources, official statements
+   - Policy/regulatory → government publications, legal databases, legislative records
+4. **Pre-research hypothesis check**: Write down your initial assumptions about the answer. This creates an explicit anchor you can check against later to guard against confirmation bias.
+5. Store the research plan in the knowledge graph
 
 ---
 
@@ -245,6 +252,16 @@ For each sub-question, construct 3-5 search queries using different strategies:
 **Comparison queries**: "[topic] vs [alternative]", "[topic] pros cons", "[topic] review"
 **Temporal queries**: "[topic] [current year]", "[topic] latest", "[topic] update"
 **Deep queries**: "[topic] case study", "[topic] data", "[topic] statistics"
+**Contrarian queries**: "[topic] criticism", "[topic] problems", "[topic] debunked" — deliberately seek disconfirming evidence
+**Grey literature queries**: "[topic] whitepaper", "[topic] working paper", "[topic] technical report", "[topic] preprint", "[topic] thesis OR dissertation"
+
+Academic & grey literature search (for thorough/exhaustive tiers):
+- `site:arxiv.org [topic]` — preprints (note: not peer-reviewed)
+- `site:scholar.google.com [topic]` or `[topic] systematic review OR meta-analysis`
+- `site:ssrn.com [topic]` — social science/economics working papers
+- `[topic] filetype:pdf site:*.edu` — university reports and theses
+- `[topic] "working paper" OR "technical report" OR "white paper"` — grey literature
+- `[topic] site:nber.org OR site:brookings.edu OR site:rand.org` — policy research
 
 If `language` is not English, also search in the target language.
 
@@ -257,38 +274,92 @@ For each search query:
 2. Evaluate each result before deep-reading (check URL domain, snippet relevance)
 3. web_fetch promising sources → extract:
    - Key claims and assertions
-   - Data points and statistics
-   - Expert quotes and opinions
-   - Methodology (for research/studies)
+   - Data points and statistics (note sample size, methodology, date range)
+   - Expert quotes and opinions (note credentials and potential conflicts of interest)
+   - Methodology (for research/studies — note limitations the authors acknowledge)
    - Date of publication
    - Author credentials (if available)
+   - Funding source or organizational affiliation (if disclosed)
 
-Source quality evaluation (CRAAP test):
-- **Currency**: When was it published? Is it still relevant?
-- **Relevance**: Does it directly address the question?
-- **Authority**: Who wrote it? What are their credentials?
-- **Accuracy**: Can claims be verified? Are sources cited?
-- **Purpose**: Is it informational, persuasive, or commercial?
+### Source Quality Evaluation (Enhanced CRAAP+)
+
+Apply the standard CRAAP test, then add these advanced checks:
+
+**CRAAP Basics**:
+- **Currency**: When published? Still relevant? For tech: >2 years may be outdated.
+- **Relevance**: Directly addresses the question? Appropriate depth?
+- **Authority**: Author credentials? Institutional backing? Domain expertise?
+- **Accuracy**: Evidence-backed? Peer-reviewed? Verifiable claims?
+- **Purpose**: Informational, persuasive, or commercial? Hidden agenda?
+
+**Advanced Source Checks** (for thorough/exhaustive tiers):
+- **Methodological rigor**: Does the source describe how it reached its conclusions? Are sample sizes adequate? Are confounders addressed?
+- **Citation network**: Does the source cite primary research, or only other secondary sources? Follow the citation chain to the origin.
+- **Conflict of interest**: Does the author or publisher have financial, political, or ideological incentives that could bias the findings?
+- **Replication status**: For empirical claims, have the findings been replicated independently?
+- **Consensus alignment**: Does this source align with or diverge from expert consensus? If it diverges, does it provide compelling evidence for the divergence?
 
 Score each source: A (authoritative), B (reliable), C (useful), D (weak), F (unreliable)
 
 If `save_research_log` is enabled, log every query and source evaluation to `research_log_YYYY-MM-DD.md`.
 
-Continue until:
+Continue until the tier threshold is met:
 - Quick: 5-10 sources gathered
 - Thorough: 20-30 sources gathered OR sub-questions answered
 - Exhaustive: 50+ sources gathered AND all sub-questions multi-sourced
 
 ---
 
-## Phase 4 — Cross-Reference & Synthesis
+## Phase 4 — Cross-Reference, Conflict Resolution & Synthesis
+
+### 4a. Source Triangulation
 
 If `source_verification` is enabled:
 1. For each key claim, verify it appears in 2+ independent sources
 2. Flag claims that only appear in one source as "single-source"
-3. Note any contradictions between sources — report both sides
+3. Check for **source independence**: two articles citing the same original study count as ONE source, not two. Trace claims to their origin.
 
-Synthesis process:
+### 4b. Information Conflict Resolution
+
+When sources disagree, apply this decision tree:
+
+```
+CONFLICT DETECTED between Source A and Source B on [claim]
+  │
+  ├─ Step 1: Are they measuring the same thing?
+  │   NO → Not a real conflict. Note the different scopes and report both.
+  │   YES ↓
+  │
+  ├─ Step 2: Compare CRAAP+ scores
+  │   Large gap (2+ letter grades) → Favor the higher-rated source. Note the disagreement.
+  │   Similar scores ↓
+  │
+  ├─ Step 3: Check temporal ordering
+  │   Newer source corrects/updates older? → Favor newer with context.
+  │   Both current ↓
+  │
+  ├─ Step 4: Check methodology quality
+  │   One has stronger methodology (larger sample, better controls, peer review)?
+  │   → Favor stronger methodology. Explain why.
+  │   Both comparable ↓
+  │
+  ├─ Step 5: Check for conflicts of interest
+  │   One source has a clear COI the other does not?
+  │   → Favor the source without COI. Disclose the COI.
+  │   Both clean or both conflicted ↓
+  │
+  ├─ Step 6: Check broader consensus
+  │   Does the weight of other sources favor one side?
+  │   → Report majority view as primary, minority as noted dissent.
+  │   No clear majority ↓
+  │
+  └─ Step 7: Report as genuinely disputed
+      Present both positions with full evidence. Do NOT force a conclusion.
+      Mark the claim as "Disputed" in confidence assessment.
+```
+
+### 4c. Synthesis
+
 1. Group findings by sub-question
 2. Identify the consensus view (what most sources agree on)
 3. Identify minority views (what credible sources disagree on)
@@ -303,19 +374,35 @@ If `auto_follow_up` is enabled and you discover important tangential questions:
 
 ---
 
-## Phase 5 — Fact-Check Pass
+## Phase 5 — Fact-Check Pass & Bias Audit
+
+### 5a. Fact-Check
 
 For critical claims in the synthesis:
 1. Search for the primary source (original research, official data)
-2. Check for known debunkings or corrections
+2. Check for known debunkings, retractions, or corrections
 3. Verify statistics against authoritative databases
 4. Flag any claim where the evidence is weak or contested
+5. For quantitative claims: check if the number is plausible (order-of-magnitude sanity check)
 
 Mark each claim with a confidence level:
-- **Verified**: confirmed by 3+ authoritative sources
-- **Likely**: confirmed by 2 sources or 1 authoritative source
+- **Verified**: confirmed by 3+ authoritative sources with independent evidence chains
+- **Likely**: confirmed by 2 sources or 1 authoritative primary source
 - **Unverified**: single source, plausible but not confirmed
-- **Disputed**: sources disagree
+- **Disputed**: sources disagree (include the conflict resolution outcome from Phase 4b)
+
+### 5b. Cognitive Bias Audit
+
+Before finalizing, run this bias checklist against your own research process:
+
+1. **Confirmation bias**: Review your Phase 1 initial assumptions. Did you search as hard for disconfirming evidence as confirming? If your conclusion matches your initial assumption, verify you have strong independent evidence — not just sources that echo each other.
+2. **Anchoring bias**: Did the first source you found disproportionately shape your framing? Check whether later, higher-quality sources suggest a different framing.
+3. **Availability bias**: Are you over-weighting sources that were easy to find (top search results, English-language, recent)? Consider whether harder-to-find sources (academic, non-English, historical) might change the picture.
+4. **Survivorship bias**: Are you only seeing success stories? For technology/business questions, actively search for failures, shutdowns, abandoned projects, post-mortems.
+5. **Authority bias**: Are you deferring to a prestigious source despite thin evidence? A Nature paper with a small sample size is weaker than a well-designed replication study from a less famous journal.
+6. **Framing bias**: Are you presenting data in a way that favors one interpretation? Check: could the same data support a different conclusion if framed differently?
+
+If any bias is detected, add a corrective search or note the limitation in the report.
 
 ---
 
@@ -350,8 +437,11 @@ Generate the report based on `output_style`:
 | Metric | Value | Source | Confidence |
 |--------|-------|--------|------------|
 
-## Contradictions & Open Questions
-[Areas where sources disagree or gaps exist]
+## Information Conflicts
+[Explicit table or narrative of where sources disagreed and how each conflict was resolved]
+
+## Limitations & Bias Disclosure
+[Any biases detected during audit, gaps in source diversity, methodological caveats]
 
 ## Sources
 [Full source list with quality ratings]
@@ -365,6 +455,7 @@ Generate the report based on `output_style`:
 ## Methodology
 ## Findings
 ## Discussion
+## Limitations
 ## Conclusion
 ## References (APA format)
 ```
@@ -375,6 +466,8 @@ Generate the report based on `output_style`:
 ## Bottom Line
 [1-2 sentence answer]
 ## Key Findings (bullet points)
+## Confidence & Caveats
+[What could change this assessment]
 ## Recommendations
 ## Risk Factors
 ## Sources
@@ -411,6 +504,9 @@ If event_publish is available, publish a "research_complete" event with the repo
 - When quoting, use exact text — do not paraphrase and present as a quote
 - If the user messages you mid-research, respond and then continue
 - Do not include sources you haven't actually read (no padding the bibliography)
+- Trace citation chains — if Source B cites Source A, go read Source A and cite the original
+- When a claim is "common knowledge" in a field but you cannot find a primary source, say so explicitly rather than inventing a citation
+- Treat your own synthesis as a hypothesis, not a conclusion — remain open to revising it when new evidence appears
 """
 
 [dashboard]
@@ -442,6 +538,241 @@ token_consumption = "high"
 default_active = true
 activation_warning = "Researcher hand runs continuously and performs deep research, consuming tokens."
 
+# ─── Internationalization (optional) ─────────────────────────────────────────
+# All i18n sections are optional. Without them, the English values above are used.
+# To localize, add [i18n.LANG] sections (e.g. zh, ja, ko, es, fr, de).
+# Settings translations are also optional — omit to keep English labels.
+
+# ─── Chinese (简体中文) ────────────────────────────────────────────────────
+
 [i18n.zh]
 name = "深度研究 Hand"
 description = "自主深度研究员——全面调研、交叉验证、事实核查和结构化报告"
+category = "生产力"
+
+[i18n.zh.settings.research_depth]
+label = "研究深度"
+description = "每次调研的详尽程度"
+
+[i18n.zh.settings.output_style]
+label = "输出格式"
+description = "研究报告的格式风格"
+
+[i18n.zh.settings.source_verification]
+label = "来源验证"
+description = "在引用前通过多个来源交叉验证论述"
+
+[i18n.zh.settings.max_sources]
+label = "最大来源数"
+description = "每次调研参考的最大来源数量"
+
+[i18n.zh.settings.auto_follow_up]
+label = "自动追问"
+description = "自动研究调查过程中发现的延伸问题"
+
+[i18n.zh.settings.save_research_log]
+label = "保存研究日志"
+description = "保存详细的搜索查询和来源评估记录"
+
+[i18n.zh.settings.citation_style]
+label = "引用格式"
+description = "报告中引用来源的格式"
+
+[i18n.zh.settings.language]
+label = "语言"
+description = "研究和输出的主要语言"
+
+# ─── Korean (한국어) ────────────────────────────────────────────────────
+
+[i18n.ko]
+name = "심층 연구 Hand"
+description = "자율 심층 연구원 — 철저한 조사, 교차 검증, 팩트체크 및 구조화된 보고서"
+category = "생산성"
+
+[i18n.ko.settings.research_depth]
+label = "연구 깊이"
+description = "각 조사의 철저함 정도"
+
+[i18n.ko.settings.output_style]
+label = "출력 스타일"
+description = "연구 보고서의 형식 스타일"
+
+[i18n.ko.settings.source_verification]
+label = "출처 검증"
+description = "인용 전 여러 출처를 통해 주장을 교차 검증"
+
+[i18n.ko.settings.max_sources]
+label = "최대 출처 수"
+description = "조사당 참고할 최대 출처 수"
+
+[i18n.ko.settings.auto_follow_up]
+label = "자동 후속 조사"
+description = "조사 과정에서 발견된 후속 질문을 자동으로 연구"
+
+[i18n.ko.settings.save_research_log]
+label = "연구 로그 저장"
+description = "상세한 검색 쿼리 및 출처 평가 기록 저장"
+
+[i18n.ko.settings.citation_style]
+label = "인용 형식"
+description = "보고서에서 출처를 인용하는 형식"
+
+[i18n.ko.settings.language]
+label = "언어"
+description = "연구 및 출력의 주요 언어"
+
+# ─── Japanese (日本語) ────────────────────────────────────────────────────
+
+[i18n.ja]
+name = "ディープリサーチ Hand"
+description = "自律型深層調査エージェント——徹底的な調査、クロスリファレンス、ファクトチェック、構造化レポート"
+category = "生産性"
+
+[i18n.ja.settings.research_depth]
+label = "調査の深さ"
+description = "各調査の徹底度"
+
+[i18n.ja.settings.output_style]
+label = "出力スタイル"
+description = "調査レポートのフォーマットスタイル"
+
+[i18n.ja.settings.source_verification]
+label = "ソース検証"
+description = "引用前に複数のソースでクレームをクロスチェックする"
+
+[i18n.ja.settings.max_sources]
+label = "最大ソース数"
+description = "調査ごとに参照するソースの最大数"
+
+[i18n.ja.settings.auto_follow_up]
+label = "自動フォローアップ"
+description = "調査中に発見されたフォローアップ質問を自動的に調査する"
+
+[i18n.ja.settings.save_research_log]
+label = "調査ログの保存"
+description = "詳細な検索クエリとソース評価の記録を保存する"
+
+[i18n.ja.settings.citation_style]
+label = "引用スタイル"
+description = "レポートでのソース引用の形式"
+
+[i18n.ja.settings.language]
+label = "言語"
+description = "調査と出力の主要言語"
+
+# ─── Spanish (Español) ────────────────────────────────────────────────────
+
+[i18n.es]
+name = "Hand de Investigación"
+description = "Investigador autónomo en profundidad — investigación exhaustiva, referencias cruzadas, verificación de hechos e informes estructurados"
+category = "Productividad"
+
+[i18n.es.settings.research_depth]
+label = "Profundidad de investigación"
+description = "Qué tan exhaustiva debe ser cada investigación"
+
+[i18n.es.settings.output_style]
+label = "Estilo de salida"
+description = "Cómo formatear los informes de investigación"
+
+[i18n.es.settings.source_verification]
+label = "Verificación de fuentes"
+description = "Verificar afirmaciones cruzando múltiples fuentes antes de incluirlas"
+
+[i18n.es.settings.max_sources]
+label = "Máximo de fuentes"
+description = "Número máximo de fuentes a consultar por investigación"
+
+[i18n.es.settings.auto_follow_up]
+label = "Seguimiento automático"
+description = "Investigar automáticamente preguntas de seguimiento descubiertas durante la investigación"
+
+[i18n.es.settings.save_research_log]
+label = "Guardar registro de investigación"
+description = "Guardar consultas de búsqueda detalladas y notas de evaluación de fuentes"
+
+[i18n.es.settings.citation_style]
+label = "Estilo de citación"
+description = "Cómo citar fuentes en los informes"
+
+[i18n.es.settings.language]
+label = "Idioma"
+description = "Idioma principal para la investigación y los resultados"
+
+# ─── French (Français) ────────────────────────────────────────────────────
+
+[i18n.fr]
+name = "Hand de Recherche Approfondie"
+description = "Chercheur autonome en profondeur — recherche exhaustive, références croisées, vérification des faits et rapports structurés"
+category = "Productivité"
+
+[i18n.fr.settings.research_depth]
+label = "Profondeur de recherche"
+description = "Niveau de minutie de chaque investigation"
+
+[i18n.fr.settings.output_style]
+label = "Style de sortie"
+description = "Style de formatage du rapport de recherche"
+
+[i18n.fr.settings.source_verification]
+label = "Vérification des sources"
+description = "Vérifier les affirmations auprès de plusieurs sources avant de citer"
+
+[i18n.fr.settings.max_sources]
+label = "Nombre maximum de sources"
+description = "Nombre maximum de sources à consulter par recherche"
+
+[i18n.fr.settings.auto_follow_up]
+label = "Suivi automatique"
+description = "Rechercher automatiquement les questions de suivi découvertes pendant l'investigation"
+
+[i18n.fr.settings.save_research_log]
+label = "Sauvegarder le journal de recherche"
+description = "Conserver les journaux détaillés des requêtes de recherche et des évaluations de sources"
+
+[i18n.fr.settings.citation_style]
+label = "Style de citation"
+description = "Format de citation des sources dans les rapports"
+
+[i18n.fr.settings.language]
+label = "Langue"
+description = "Langue principale pour la recherche et les résultats"
+
+# ─── German (Deutsch) ────────────────────────────────────────────────────
+
+[i18n.de]
+name = "Tiefenforschungs-Hand"
+description = "Autonomer Tiefenforscher — gründliche Untersuchung, Querverweise, Faktencheck und strukturierte Berichte"
+category = "Produktivität"
+
+[i18n.de.settings.research_depth]
+label = "Forschungstiefe"
+description = "Gründlichkeit jeder Untersuchung"
+
+[i18n.de.settings.output_style]
+label = "Ausgabestil"
+description = "Formatierungsstil des Forschungsberichts"
+
+[i18n.de.settings.source_verification]
+label = "Quellenverifikation"
+description = "Behauptungen vor dem Zitieren mit mehreren Quellen gegenkontrollieren"
+
+[i18n.de.settings.max_sources]
+label = "Maximale Quellen"
+description = "Maximale Anzahl der pro Untersuchung zu konsultierenden Quellen"
+
+[i18n.de.settings.auto_follow_up]
+label = "Automatisches Nachfassen"
+description = "Während der Untersuchung entdeckte Folgefragen automatisch recherchieren"
+
+[i18n.de.settings.save_research_log]
+label = "Forschungsprotokoll speichern"
+description = "Detaillierte Protokolle der Suchabfragen und Quellenbewertungen speichern"
+
+[i18n.de.settings.citation_style]
+label = "Zitierstil"
+description = "Format für Quellenangaben in Berichten"
+
+[i18n.de.settings.language]
+label = "Sprache"
+description = "Hauptsprache für Forschung und Ergebnisse"
