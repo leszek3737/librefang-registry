@@ -33,7 +33,14 @@ aliases = [
   "find companies",
   "b2b leads",
 ]
-weak_aliases = ["sales", "outreach", "company list", "sales leads", "lead list", "prospecting"]
+weak_aliases = [
+  "sales",
+  "outreach",
+  "company list",
+  "sales leads",
+  "lead list",
+  "prospecting",
+]
 
 # ─── Configurable settings ───────────────────────────────────────────────────
 

@@ -34,7 +34,14 @@ aliases = [
   "market strategy",
   "competitive strategy",
 ]
-weak_aliases = ["swot", "industry report", "competitive landscape", "porter analysis", "go to market", "strategy memo"]
+weak_aliases = [
+  "swot",
+  "industry report",
+  "competitive landscape",
+  "porter analysis",
+  "go to market",
+  "strategy memo",
+]
 
 # ─── Configurable settings ───────────────────────────────────────────────────
 

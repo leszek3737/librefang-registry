@@ -37,7 +37,14 @@ aliases = [
   "browse web",
   "scrape page",
 ]
-weak_aliases = ["web page", "submit form", "web task", "browser task", "open browser", "web automation"]
+weak_aliases = [
+  "web page",
+  "submit form",
+  "web task",
+  "browser task",
+  "open browser",
+  "web automation",
+]
 
 [[requires]]
 key = "python3"

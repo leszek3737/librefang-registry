@@ -34,7 +34,14 @@ aliases = [
   "market intelligence",
   "competitive analysis",
 ]
-weak_aliases = ["watch", "signals", "continuous monitoring", "surveillance", "intel", "news monitoring"]
+weak_aliases = [
+  "watch",
+  "signals",
+  "continuous monitoring",
+  "surveillance",
+  "intel",
+  "news monitoring",
+]
 
 # ─── Configurable settings ───────────────────────────────────────────────────
 

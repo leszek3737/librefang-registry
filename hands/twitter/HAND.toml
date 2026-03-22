@@ -23,8 +23,20 @@ tools = [
 ]
 
 [routing]
-aliases = ["twitter", "tweet", "x.com", "scheduled tweet", "post tweet", "twitter thread"]
-weak_aliases = ["social media post", "engagement tracking", "twitter management", "tweet scheduler"]
+aliases = [
+  "twitter",
+  "tweet",
+  "x.com",
+  "scheduled tweet",
+  "post tweet",
+  "twitter thread",
+]
+weak_aliases = [
+  "social media post",
+  "engagement tracking",
+  "twitter management",
+  "tweet scheduler",
+]
 
 [[requires]]
 key = "TWITTER_BEARER_TOKEN"

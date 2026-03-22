@@ -33,7 +33,13 @@ aliases = [
   "market prediction",
   "price forecast",
 ]
-weak_aliases = ["trend analysis", "calibration", "future outlook", "what will happen", "prediction"]
+weak_aliases = [
+  "trend analysis",
+  "calibration",
+  "future outlook",
+  "what will happen",
+  "prediction",
+]
 
 # ─── Configurable settings ───────────────────────────────────────────────────
 

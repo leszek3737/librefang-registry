@@ -34,7 +34,13 @@ aliases = [
   "find sources",
   "fact check",
 ]
-weak_aliases = ["research", "cross reference", "literature review", "look into", "dig into"]
+weak_aliases = [
+  "research",
+  "cross reference",
+  "literature review",
+  "look into",
+  "dig into",
+]
 
 # ─── Configurable settings ───────────────────────────────────────────────────
 
