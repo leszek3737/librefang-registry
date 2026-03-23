@@ -1,5 +1,5 @@
 id = "apitester"
-version = "1.0.0"
+version = "1.1.0"
 name = "API Tester Hand"
 description = "Autonomous API testing agent — endpoint discovery, request validation, load testing, and regression detection"
 
@@ -23,6 +23,21 @@ tools = [
   "knowledge_query",
   "event_publish",
 ]
+
+[[requires]]
+key = "curl"
+label = "curl must be installed"
+requirement_type = "binary"
+check_value = "curl"
+description = "curl is used to send HTTP requests to target API endpoints for testing, validation, and load simulation."
+
+[requires.install]
+macos = "brew install curl"
+linux_apt = "sudo apt install curl"
+linux_dnf = "sudo dnf install curl"
+linux_pacman = "sudo pacman -S curl"
+windows = "winget install cURL.cURL"
+estimated_time = "1 min"
 
 [routing]
 aliases = [
