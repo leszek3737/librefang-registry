@@ -4,7 +4,7 @@ name = "Creator Hand"
 description = "AI media studio — generates images, videos, music, and speech from text prompts"
 
 category = "content"
-icon = "\U0001F3A8"
+icon = "lucide:palette"
 tools = [
   "image_generate",
   "video_generate",
@@ -362,6 +362,7 @@ label = "MiniMax API 密钥"
 description = "来自 platform.minimaxi.com 的 API 密钥，用于视频和音乐生成"
 
 [i18n.zh-TW]
+name = "創作者 Hand"
 description = "AI 媒體工作室——根據文字提示生成圖片、影片、音樂和語音"
 
 [i18n.ja]
@@ -420,8 +421,8 @@ description = "Estudio de medios IA — genera imágenes, videos, música y voz 
 category = "Contenido"
 
 [i18n.fr]
-name = "Hand Cr\u00e9ateur"
-description = "Studio m\u00e9dia IA — g\u00e9n\u00e8re images, vid\u00e9os, musique et voix \u00e0 partir de texte"
+name = "Hand Créateur"
+description = "Studio média IA — génère images, vidéos, musique et voix à partir de texte"
 category = "Contenu"
 
 [i18n.de]

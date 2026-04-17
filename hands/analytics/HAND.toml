@@ -4,7 +4,7 @@ name = "Analytics Hand"
 description = "Autonomous data analytics agent — data collection, analysis, visualization, dashboards, and automated reporting"
 
 category = "data"
-icon = "📈"
+icon = "lucide:trending-up"
 tools = [
   "shell_exec",
   "file_read",
@@ -764,6 +764,7 @@ label = "置信度阈值"
 description = "报告中纳入分析结论的最低置信度要求"
 
 [i18n.zh-TW]
+name = "數據分析 Hand"
 description = "自主資料分析——資料採集、分析、視覺化、儀表板與自動報告"
 
 # ─── Japanese (日本語) ────────────────────────────────────────────────────
